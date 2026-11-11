@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Lista TO-DO</title>
+<style>
+
+  #lista strong {
+  font-size: 20px;
+}
+
+  body {
+    text-align: center;
+  }
+
+  #botoes {
+    margin-bottom: 40px;
+  }
+
+  #form-tarefa {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  #form-tarefa[hidden] {
+    display: none;
+  }
+
+  #area-lista,
+  #area-editar,
+  #area-excluir {
+    margin-top: 40px;
+  }
+
+  #lista {
+    list-style-position: inside;
+    padding: 0;
+  }
+
+  #pesquisa {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 220px;
+    text-align: left;
+  }
+
+  #busca {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  #sugestoes {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #ccc;
+    background: white;
+  }
+
+  #sugestoes li {
+    padding: 6px 8px;
+    cursor: pointer;
+  }
+
+  #sugestoes li:hover {
+    background: #eee;
+  }
+
+  #sugestoes[hidden] {
+    display: none;
+  }
+</style>
+</head>
+<body>
+  <h1>Minhas Tarefas</h1>
+
+  <div id="botoes">
+    <button type="button" id="btn-adicionar">Adicionar tarefa</button>
+    <button type="button" id="btn-listar">Listar tarefas</button>
+    <button type="button" id="btn-editar">Editar tarefas</button>
+    <button type="button" id="btn-excluir">Excluir tarefas</button>
+  </div>
+
+  <form id="form-tarefa" hidden>
+    <input type="text" id="titulo" placeholder="Título (Obrigatório)">
+    <textarea id="descricao" placeholder="Descrição"></textarea>
+    <input type="date" id="data">
+    <select id="status">
+      <option value="Pendente">Pendente</option>
+      <option value="Concluída">Concluída</option>
+    </select>
+    <button type="submit">Salvar</button>
+    <p id="mensagem" hidden>Tarefa salva com sucesso!</p>
+    <p id="erro" hidden style="color: red;"></p>
+  </form>
+
+  <div id="pesquisa">
+    <input type="text" id="busca" placeholder="Pesquisar tarefas">
+    <ul id="sugestoes" hidden></ul>
+  </div>
+
+  <div id="area-lista" hidden>
+    <ul id="lista"></ul>
+  </div>
+
+  <div id="area-editar" hidden>
+    <label for="select-editar">Você deseja editar qual tarefa?</label>
+    <select id="select-editar">
+      <option value="">Selecione...</option>
+    </select>
+  </div>
+
+  <div id="area-excluir" hidden>
+    <label for="select-excluir">Você deseja excluir qual tarefa?</label>
+    <select id="select-excluir">
+      <option value="">Selecione...</option>
+    </select>
+    <button type="button" id="btn-confirmar-excluir">Excluir</button>
+  </div>
+
+<script>
+  // ---------- Elementos ----------
+  const form = document.getElementById("form-tarefa");
+  const areaLista = document.getElementById("area-lista");
+  const areaEditar = document.getElementById("area-editar");
+  const areaExcluir = document.getElementById("area-excluir");
+  const secoes = [form, areaLista, areaEditar, areaExcluir];
+
+  const mensagem = document.getElementById("mensagem");
+  const erro = document.getElementById("erro");
+  const titulo = document.getElementById("titulo");
+  const descricao = document.getElementById("descricao");
+  const data = document.getElementById("data");
+  const selectStatus = document.getElementById("status");
+
+  const busca = document.getElementById("busca");
+  const sugestoes = document.getElementById("sugestoes");
+
+  // ---------- Dados ----------
+  let tarefas = JSON.parse(localStorage.getItem("tarefas")) || [];
+  let idEditando = null;
+
+  function salvarNoNavegador() {
+    localStorage.setItem("tarefas", JSON.stringify(tarefas));
+  }
+
+  // ---------- Telas ----------
+  function mostrar(secao) {
+    secoes.forEach(s => s.hidden = true);
+    secao.hidden = false;
+  }
+
+  function preencherSelects() {
+    const selectEditar = document.getElementById("select-editar");
+    const selectExcluir = document.getElementById("select-excluir");
+
+    selectEditar.innerHTML = '<option value="">Selecione...</option>';
+    selectExcluir.innerHTML = '<option value="">Selecione...</option>';
+
+    tarefas.forEach(function (t) {
+      const opcao1 = document.createElement("option");
+      opcao1.value = t.id;
+      opcao1.textContent = t.titulo;
+      selectEditar.appendChild(opcao1);
+
+      const opcao2 = document.createElement("option");
+      opcao2.value = t.id;
+      opcao2.textContent = t.titulo;
+      selectExcluir.appendChild(opcao2);
+    });
+  }
+
+  function formatarData(dataISO) {
+    // "2026-11-10" vira "10/11/2026"
+    return dataISO.split("-").reverse().join("/");
+  }
+
+  function listar(itens = tarefas) {
+    const lista = document.getElementById("lista");
+    lista.innerHTML = "";
+
+    itens.forEach(function (t) {
+      const li = document.createElement("li");
+
+      const nome = document.createElement("strong");
+      nome.textContent = t.titulo;
+      li.appendChild(nome);
+
+      const detalhes = document.createElement("div");
+      detalhes.textContent = "Descrição: " + (t.descricao || "-");
+      li.appendChild(detalhes);
+
+      const prazo = document.createElement("div");
+      prazo.textContent = "Data: " + formatarData(t.data);
+      li.appendChild(prazo);
+
+      const situacao = document.createElement("div");
+      situacao.textContent = "Status: " + t.status;
+      li.appendChild(situacao);
+
+      li.style.marginBottom = "15px";
+      lista.appendChild(li);
+    });
+
+    preencherSelects();
+  }
+
+  // ---------- Botões do topo ----------
+  document.getElementById("btn-adicionar").addEventListener("click", () => {
+    idEditando = null;
+    form.reset();
+    erro.hidden = true;
+    mostrar(form);
+  });
+
+  document.getElementById("btn-listar").addEventListener("click", () => {
+    busca.value = "";
+    sugestoes.hidden = true;
+    listar();
+    mostrar(areaLista);
+  });
+
+  document.getElementById("btn-editar").addEventListener("click", () => mostrar(areaEditar));
+  document.getElementById("btn-excluir").addEventListener("click", () => mostrar(areaExcluir));
+
+  // ---------- Salvar (criar ou editar) ----------
+  form.addEventListener("submit", function (evento) {
+    evento.preventDefault();
+    mensagem.hidden = true;
+    erro.hidden = true;
+
+    if (titulo.value.trim() === "") {
+      erro.textContent = "O título é obrigatório.";
+      erro.hidden = false;
+      return;
+    }
+
+    if (data.value === "" || isNaN(new Date(data.value))) {
+      erro.textContent = "Informe uma data válida.";
+      erro.hidden = false;
+      return;
+    }
+
+    if (idEditando === null) {
+      tarefas.push({
+        id: Date.now(),
+        titulo: titulo.value.trim(),
+        descricao: descricao.value,
+        data: data.value,
+        status: selectStatus.value
+      });
+    } else {
+      const t = tarefas.find(t => t.id === idEditando);
+      t.titulo = titulo.value.trim();
+      t.descricao = descricao.value;
+      t.data = data.value;
+      t.status = selectStatus.value;
+      idEditando = null;
+    }
+
+    salvarNoNavegador();
+    listar();
+
+    mensagem.hidden = false;
+    form.reset();
+    setTimeout(() => mensagem.hidden = true, 3000);
+  });
+
+  // ---------- Editar ----------
+  document.getElementById("select-editar").addEventListener("change", function () {
+    if (this.value === "") return;
+
+    const t = tarefas.find(t => t.id === Number(this.value));
+    titulo.value = t.titulo;
+    descricao.value = t.descricao;
+    data.value = t.data;
+    selectStatus.value = t.status;
+
+    idEditando = t.id;
+    this.value = "";
+    erro.hidden = true;
+    mostrar(form);
+  });
+
+  // ---------- Excluir ----------
+  document.getElementById("btn-confirmar-excluir").addEventListener("click", function () {
+    const id = Number(document.getElementById("select-excluir").value);
+    if (!id) return;
+
+    if (!confirm("Deseja realmente excluir esta tarefa?")) return;
+
+    tarefas = tarefas.filter(t => t.id !== id);
+    salvarNoNavegador();
+    listar();
+  });
+
+  // ---------- Pesquisa ----------
+  busca.addEventListener("input", function () {
+    const texto = busca.value.trim().toLowerCase();
+    sugestoes.innerHTML = "";
+
+    if (texto === "") {
+      sugestoes.hidden = true;
+      return;
+    }
+
+    const encontradas = tarefas.filter(t => t.titulo.toLowerCase().includes(texto));
+
+    if (encontradas.length === 0) {
+      const li = document.createElement("li");
+      li.textContent = "Nenhuma tarefa encontrada";
+      sugestoes.appendChild(li);
+    }
+
+    encontradas.forEach(function (t) {
+      const li = document.createElement("li");
+      li.textContent = t.titulo;
+      li.addEventListener("click", function () {
+        busca.value = t.titulo;
+        sugestoes.hidden = true;
+        listar([t]);
+        mostrar(areaLista);
+      });
+      sugestoes.appendChild(li);
+    });
+
+    sugestoes.hidden = false;
+  });
+
+  // ---------- Início ----------
+  listar();
+</script>
+</body>
+</html>
